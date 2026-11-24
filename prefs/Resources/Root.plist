@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>items</key>
+    <array>
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>总开关与默认策略</string>
+            <key>footerText</key>
+            <string>请先在 系统设置 → App Store 中打开「App 更新」。之后本插件按单个 App 精确接管：自动更新=后台自动升；仅手动=跳过后台自动更新、保留 App Store 手动更新按钮；禁用=彻底屏蔽自动与手动更新并隐藏红点。</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.siri666666.appupdatecontrolprefs</string>
+            <key>key</key>
+            <string>enabled</string>
+            <key>label</key>
+            <string>启用应用更新控制</string>
+            <key>PostNotification</key>
+            <string>com.siri666666.appupdatecontrolprefs/saved</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSegmentCell</string>
+            <key>default</key>
+            <integer>0</integer>
+            <key>defaults</key>
+            <string>com.siri666666.appupdatecontrolprefs</string>
+            <key>key</key>
+            <string>defaultMode</string>
+            <key>validValues</key>
+            <array>
+                <integer>0</integer>
+                <integer>1</integer>
+            </array>
+            <key>validTitles</key>
+            <array>
+                <string>默认：自动更新</string>
+                <string>默认：仅手动更新</string>
+            </array>
+            <key>PostNotification</key>
+            <string>com.siri666666.appupdatecontrolprefs/saved</string>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>按应用单独配置</string>
+            <key>footerText</key>
+            <string>规则实时推送到 appstored 生效，无需注销桌面。若改了「禁用更新」想立刻刷新 App Store 列表，可点下方「重启 appstored 服务」。</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSLinkListCell</string>
+            <key>detail</key>
+            <string>AUCAppListController</string>
+            <key>subcontrollerClass</key>
+            <string>AUCAppDetailController</string>
+            <key>label</key>
+            <string>选择并配置应用...</string>
+            <key>sections</key>
+            <array>
+                <dict>
+                    <key>sectionType</key>
+                    <string>User</string>
+                </dict>
+            </array>
+            <key>useSearchBar</key>
+            <true/>
+            <key>hideSearchBarWhileScrolling</key>
+            <false/>
+            <key>showIdentifiersAsSubtitle</key>
+            <true/>
+            <key>includeIdentifiersInSearch</key>
+            <true/>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>服务与维护</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSButtonCell</string>
+            <key>label</key>
+            <string>重启 appstored 服务（刷新角标）</string>
+            <key>action</key>
+            <string>restartAppStoreDaemon</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSButtonCell</string>
+            <key>label</key>
+            <string>清空所有单应用规则</string>
+            <key>action</key>
+            <string>clearAllRules</string>
+            <key>isDestructive</key>
+            <true/>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>关于与开源</string>
+            <key>footerText</key>
+            <string>AppUpdateControl v1.0.0 · MIT License · Native RootHide &amp; Rootless</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSButtonCell</string>
+            <key>label</key>
+            <string>GitHub 开源仓库</string>
+            <key>action</key>
+            <string>openGitHub</string>
+        </dict>
+    </array>
+    <key>title</key>
+    <string>应用更新控制</string>
+</dict>
+</plist>

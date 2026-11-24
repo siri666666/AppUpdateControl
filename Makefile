@@ -1,0 +1,22 @@
+TARGET := iphone:clang:16.5:15.0
+ARCHS := arm64 arm64e
+
+include $(THEOS)/makefiles/common.mk
+
+TWEAK_NAME = AppUpdateControl
+
+AppUpdateControl_FILES = Tweak.x
+AppUpdateControl_CFLAGS = -fobjc-arc
+AppUpdateControl_FRAMEWORKS = Foundation CoreFoundation
+ifeq ($(THEOS_PACKAGE_SCHEME),roothide)
+AppUpdateControl_LIBRARIES = roothide
+endif
+
+include $(THEOS_MAKE_PATH)/tweak.mk
+
+SUBPROJECTS += prefs
+include $(THEOS_MAKE_PATH)/aggregate.mk
+
+internal-stage::
+	$(ECHO_NOTHING)mkdir -p $(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences$(ECHO_END)
+	$(ECHO_NOTHING)cp prefs/entry.plist $(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences/AppUpdateControl.plist$(ECHO_END)
