@@ -170,7 +170,7 @@
             <key>label</key>
             <string>关于与开源</string>
             <key>footerText</key>
-            <string>AppUpdateControl v1.0.1 · MIT License · Native RootHide &amp; Rootless</string>
+            <string>AppUpdateControl v1.0.2 · MIT License · Native RootHide &amp; Rootless</string>
         </dict>
         <dict>
             <key>cell</key>

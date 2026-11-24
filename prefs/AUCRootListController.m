@@ -67,6 +67,11 @@ static NSUInteger auc_count_for_mode(NSInteger mode) {
     return AUCUpdateModeAuto;
 }
 
+- (void)viewDidLoad {
+    self.alphabeticIndexingEnabled = NO;
+    [super viewDidLoad];
+}
+
 - (void)loadPreferences {
     _defaultApplicationSwitchValue = NO;
     NSMutableSet *selected = [NSMutableSet set];
@@ -82,9 +87,60 @@ static NSUInteger auc_count_for_mode(NSInteger mode) {
 }
 
 - (void)viewWillAppear:(BOOL)animated {
+    self.alphabeticIndexingEnabled = NO;
     [super viewWillAppear:animated];
     [self loadPreferences];
     [self reloadSpecifiers];
+}
+
+- (NSArray *)specifiers {
+    self.alphabeticIndexingEnabled = NO;
+    NSArray *base = [super specifiers];
+    if (!base.count) return base;
+
+    NSMutableArray *enabledSpecs = [NSMutableArray array];
+    NSMutableArray *otherSpecs = [NSMutableArray array];
+    AUCUpdateMode target = [self targetMode];
+
+    for (PSSpecifier *spec in base) {
+        NSString *bid = [spec propertyForKey:@"applicationIdentifier"];
+        if (bid.length && auc_mode_for_app(bid) == target) {
+            [enabledSpecs addObject:spec];
+        } else {
+            [otherSpecs addObject:spec];
+        }
+    }
+
+    if (enabledSpecs.count == 0) return base;
+
+    NSMutableArray *cleanedOther = [NSMutableArray arrayWithCapacity:otherSpecs.count];
+    for (NSUInteger i = 0; i < otherSpecs.count; i++) {
+        PSSpecifier *s = otherSpecs[i];
+        if (s.cellType == PSGroupCell) {
+            BOOL hasFollowingRow = (i + 1 < otherSpecs.count) && (((PSSpecifier *)otherSpecs[i + 1]).cellType != PSGroupCell);
+            if (!hasFollowingRow) continue;
+        }
+        [cleanedOther addObject:s];
+    }
+
+    NSMutableArray *result = [NSMutableArray arrayWithCapacity:base.count + 2];
+    NSString *topTitle = [NSString stringWithFormat:@"已勾选 (%lu)", (unsigned long)enabledSpecs.count];
+    PSSpecifier *topGroup = [PSSpecifier preferenceSpecifierNamed:topTitle
+        target:self set:nil get:nil detail:nil cell:PSGroupCell edit:nil];
+    [result addObject:topGroup];
+    [result addObjectsFromArray:enabledSpecs];
+
+    if (cleanedOther.count > 0) {
+        if (((PSSpecifier *)cleanedOther.firstObject).cellType != PSGroupCell) {
+            PSSpecifier *restGroup = [PSSpecifier preferenceSpecifierNamed:@"其他应用"
+                target:self set:nil get:nil detail:nil cell:PSGroupCell edit:nil];
+            [result addObject:restGroup];
+        }
+        [result addObjectsFromArray:cleanedOther];
+    }
+
+    _specifiers = result;
+    return _specifiers;
 }
 
 - (id)readApplicationEnabled:(PSSpecifier *)specifier {
@@ -107,6 +163,9 @@ static NSUInteger auc_count_for_mode(NSInteger mode) {
             auc_set_mode_for_app(bid, AUCUpdateModeDefault);
         }
     }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self reloadSpecifiers];
+    });
 }
 
 @end
