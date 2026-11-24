@@ -3,7 +3,7 @@
 #import <UIKit/UIKit.h>
 #import <spawn.h>
 #import <dlfcn.h>
-#import "ATLApplicationListMultiSelectionController.h"
+#import "ATLApplicationListControllerBase.h"
 #import "../AUCPrefs.h"
 
 static NSString *auc_root_path(NSString *path) {
@@ -23,29 +23,29 @@ static NSDictionary *auc_app_modes_dict(void) {
     return [val isKindOfClass:[NSDictionary class]] ? val : @{};
 }
 
-static NSInteger auc_mode_for_app(NSString *bundleID) {
-    if (!bundleID.length) return AUCUpdateModeDefault;
+static AUCUpdateMode auc_mode_for_app(NSString *bundleID) {
+    if (!bundleID.length) return AUCUpdateModeDisabled;
     NSNumber *v = auc_app_modes_dict()[bundleID];
     if ([v respondsToSelector:@selector(integerValue)]) {
         NSInteger m = [v integerValue];
-        if (m >= AUCUpdateModeAuto && m <= AUCUpdateModeDisabled) return m;
+        if (m == AUCUpdateModeAuto || m == AUCUpdateModeManual) return (AUCUpdateMode)m;
     }
-    return AUCUpdateModeDefault;
+    return AUCUpdateModeDisabled;
 }
 
-static void auc_set_mode_for_app(NSString *bundleID, NSInteger mode) {
+static void auc_set_mode_for_app(NSString *bundleID, AUCUpdateMode mode) {
     if (!bundleID.length) return;
     NSMutableDictionary *m = [auc_app_modes_dict() mutableCopy];
-    if (mode < AUCUpdateModeAuto || mode > AUCUpdateModeDisabled) {
-        [m removeObjectForKey:bundleID];
-    } else {
+    if (mode == AUCUpdateModeAuto || mode == AUCUpdateModeManual) {
         m[bundleID] = @(mode);
+    } else {
+        [m removeObjectForKey:bundleID];
     }
     auc_cf_set(@"appModes", [m copy]);
     auc_post_saved_notification();
 }
 
-static NSUInteger auc_count_for_mode(NSInteger mode) {
+static NSUInteger auc_count_for_mode(AUCUpdateMode mode) {
     NSDictionary *dict = auc_app_modes_dict();
     NSUInteger count = 0;
     for (NSString *k in dict) {
@@ -57,40 +57,36 @@ static NSUInteger auc_count_for_mode(NSInteger mode) {
     return count;
 }
 
-@interface AUCModeSwitchListController : ATLApplicationListMultiSelectionController
-- (AUCUpdateMode)targetMode;
+@interface AUCUnifiedAppListController : ATLApplicationListControllerBase
 @end
 
-@implementation AUCModeSwitchListController
-
-- (AUCUpdateMode)targetMode {
-    return AUCUpdateModeAuto;
-}
+@implementation AUCUnifiedAppListController
 
 - (void)viewDidLoad {
     self.alphabeticIndexingEnabled = NO;
     [super viewDidLoad];
 }
 
-- (void)loadPreferences {
-    _defaultApplicationSwitchValue = NO;
-    NSMutableSet *selected = [NSMutableSet set];
-    NSDictionary *dict = auc_app_modes_dict();
-    AUCUpdateMode target = [self targetMode];
-    for (NSString *bid in dict) {
-        id v = dict[bid];
-        if ([v respondsToSelector:@selector(integerValue)] && [v integerValue] == target) {
-            [selected addObject:bid];
-        }
-    }
-    _selectedApplications = selected;
-}
-
 - (void)viewWillAppear:(BOOL)animated {
     self.alphabeticIndexingEnabled = NO;
     [super viewWillAppear:animated];
-    [self loadPreferences];
     [self reloadSpecifiers];
+}
+
+- (PSCellType)cellTypeForApplicationCells {
+    return PSStaticTextCell;
+}
+
+- (SEL)getterForSpecifierOfApplicationProxy:(LSApplicationProxy *)applicationProxy {
+    return @selector(readModeLabel:);
+}
+
+- (NSString *)readModeLabel:(PSSpecifier *)specifier {
+    NSString *bid = [specifier propertyForKey:@"applicationIdentifier"];
+    AUCUpdateMode mode = auc_mode_for_app(bid);
+    if (mode == AUCUpdateModeAuto) return @"自动更新";
+    if (mode == AUCUpdateModeManual) return @"仅手动";
+    return @"禁用";
 }
 
 - (NSArray *)specifiers {
@@ -98,94 +94,107 @@ static NSUInteger auc_count_for_mode(NSInteger mode) {
     NSArray *base = [super specifiers];
     if (!base.count) return base;
 
-    NSMutableArray *enabledSpecs = [NSMutableArray array];
-    NSMutableArray *otherSpecs = [NSMutableArray array];
-    AUCUpdateMode target = [self targetMode];
+    NSMutableArray *autoSpecs = [NSMutableArray array];
+    NSMutableArray *manualSpecs = [NSMutableArray array];
+    NSMutableArray *disabledSpecs = [NSMutableArray array];
 
     for (PSSpecifier *spec in base) {
         NSString *bid = [spec propertyForKey:@"applicationIdentifier"];
-        if (bid.length && auc_mode_for_app(bid) == target) {
-            [enabledSpecs addObject:spec];
+        if (!bid.length) continue;
+        AUCUpdateMode mode = auc_mode_for_app(bid);
+        if (mode == AUCUpdateModeAuto) {
+            [autoSpecs addObject:spec];
+        } else if (mode == AUCUpdateModeManual) {
+            [manualSpecs addObject:spec];
         } else {
-            [otherSpecs addObject:spec];
+            [disabledSpecs addObject:spec];
         }
     }
 
-    if (enabledSpecs.count == 0) return base;
-
-    NSMutableArray *cleanedOther = [NSMutableArray arrayWithCapacity:otherSpecs.count];
-    for (NSUInteger i = 0; i < otherSpecs.count; i++) {
-        PSSpecifier *s = otherSpecs[i];
-        if (s.cellType == PSGroupCell) {
-            BOOL hasFollowingRow = (i + 1 < otherSpecs.count) && (((PSSpecifier *)otherSpecs[i + 1]).cellType != PSGroupCell);
-            if (!hasFollowingRow) continue;
-        }
-        [cleanedOther addObject:s];
+    NSMutableArray *result = [NSMutableArray arrayWithCapacity:base.count + 4];
+    if (autoSpecs.count > 0) {
+        NSString *title = [NSString stringWithFormat:@"自动更新 (%lu)", (unsigned long)autoSpecs.count];
+        [result addObject:[PSSpecifier preferenceSpecifierNamed:title target:self set:nil get:nil detail:nil cell:PSGroupCell edit:nil]];
+        [result addObjectsFromArray:autoSpecs];
     }
-
-    NSMutableArray *result = [NSMutableArray arrayWithCapacity:base.count + 2];
-    NSString *topTitle = [NSString stringWithFormat:@"已勾选 (%lu)", (unsigned long)enabledSpecs.count];
-    PSSpecifier *topGroup = [PSSpecifier preferenceSpecifierNamed:topTitle
-        target:self set:nil get:nil detail:nil cell:PSGroupCell edit:nil];
-    [result addObject:topGroup];
-    [result addObjectsFromArray:enabledSpecs];
-
-    if (cleanedOther.count > 0) {
-        if (((PSSpecifier *)cleanedOther.firstObject).cellType != PSGroupCell) {
-            PSSpecifier *restGroup = [PSSpecifier preferenceSpecifierNamed:@"其他应用"
-                target:self set:nil get:nil detail:nil cell:PSGroupCell edit:nil];
-            [result addObject:restGroup];
-        }
-        [result addObjectsFromArray:cleanedOther];
+    if (manualSpecs.count > 0) {
+        NSString *title = [NSString stringWithFormat:@"仅手动更新 (%lu)", (unsigned long)manualSpecs.count];
+        [result addObject:[PSSpecifier preferenceSpecifierNamed:title target:self set:nil get:nil detail:nil cell:PSGroupCell edit:nil]];
+        [result addObjectsFromArray:manualSpecs];
+    }
+    if (disabledSpecs.count > 0) {
+        NSString *title = [NSString stringWithFormat:@"默认禁止更新 (%lu)", (unsigned long)disabledSpecs.count];
+        [result addObject:[PSSpecifier preferenceSpecifierNamed:title target:self set:nil get:nil detail:nil cell:PSGroupCell edit:nil]];
+        [result addObjectsFromArray:disabledSpecs];
     }
 
     _specifiers = result;
     return _specifiers;
 }
 
-- (id)readApplicationEnabled:(PSSpecifier *)specifier {
-    NSString *bid = [specifier propertyForKey:@"applicationIdentifier"];
-    if (!bid.length) return @NO;
-    return @(auc_mode_for_app(bid) == [self targetMode]);
-}
-
-- (void)setApplicationEnabled:(NSNumber *)enabledNum specifier:(PSSpecifier *)specifier {
-    NSString *bid = [specifier propertyForKey:@"applicationIdentifier"];
-    if (!bid.length) return;
-    BOOL enabled = [enabledNum boolValue];
-    AUCUpdateMode target = [self targetMode];
-    if (enabled) {
-        [_selectedApplications addObject:bid];
-        auc_set_mode_for_app(bid, target);
-    } else {
-        [_selectedApplications removeObject:bid];
-        if (auc_mode_for_app(bid) == target) {
-            auc_set_mode_for_app(bid, AUCUpdateModeDefault);
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    UITableViewCell *cell = [super tableView:tableView cellForRowAtIndexPath:indexPath];
+    PSSpecifier *spec = [self specifierAtIndexPath:indexPath];
+    NSString *bid = [spec propertyForKey:@"applicationIdentifier"];
+    if (bid.length) {
+        AUCUpdateMode mode = auc_mode_for_app(bid);
+        cell.accessoryType = UITableViewCellAccessoryNone;
+        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+        if (cell.detailTextLabel) {
+            if (mode == AUCUpdateModeAuto) {
+                cell.detailTextLabel.textColor = [UIColor systemGreenColor];
+            } else if (mode == AUCUpdateModeManual) {
+                cell.detailTextLabel.textColor = [UIColor systemOrangeColor];
+            } else {
+                cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+            }
         }
     }
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self reloadSpecifiers];
-    });
+    return cell;
 }
 
-@end
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    PSSpecifier *spec = [self specifierAtIndexPath:indexPath];
+    NSString *bid = [spec propertyForKey:@"applicationIdentifier"];
+    if (!bid.length) return;
 
-@interface AUCAutoListController : AUCModeSwitchListController
-@end
-@implementation AUCAutoListController
-- (AUCUpdateMode)targetMode { return AUCUpdateModeAuto; }
-@end
+    NSString *appName = spec.name ?: bid;
+    AUCUpdateMode cur = auc_mode_for_app(bid);
+    NSString *curText = (cur == AUCUpdateModeAuto) ? @"自动更新" : ((cur == AUCUpdateModeManual) ? @"仅手动更新" : @"禁用更新（默认）");
 
-@interface AUCManualListController : AUCModeSwitchListController
-@end
-@implementation AUCManualListController
-- (AUCUpdateMode)targetMode { return AUCUpdateModeManual; }
-@end
+    UIAlertController *sheet = [UIAlertController
+        alertControllerWithTitle:appName
+                       message:[NSString stringWithFormat:@"%@\n当前：%@", bid, curText]
+                preferredStyle:UIAlertControllerStyleActionSheet];
 
-@interface AUCDisabledListController : AUCModeSwitchListController
-@end
-@implementation AUCDisabledListController
-- (AUCUpdateMode)targetMode { return AUCUpdateModeDisabled; }
+    __weak typeof(self) weakSelf = self;
+    void (^applyMode)(AUCUpdateMode) = ^(AUCUpdateMode newMode) {
+        auc_set_mode_for_app(bid, newMode);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [weakSelf reloadSpecifiers];
+        });
+    };
+
+    [sheet addAction:[UIAlertAction actionWithTitle:(cur == AUCUpdateModeAuto ? @"✓ 自动更新" : @"自动更新")
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *a) { applyMode(AUCUpdateModeAuto); }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:(cur == AUCUpdateModeManual ? @"✓ 仅手动更新" : @"仅手动更新")
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *a) { applyMode(AUCUpdateModeManual); }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:(cur == AUCUpdateModeDisabled ? @"✓ 禁用更新（默认）" : @"禁用更新（默认）")
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(__unused UIAlertAction *a) { applyMode(AUCUpdateModeDisabled); }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+
+    if (sheet.popoverPresentationController) {
+        UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
+        sheet.popoverPresentationController.sourceView = cell ?: self.view;
+        sheet.popoverPresentationController.sourceRect = cell ? cell.bounds : self.view.bounds;
+    }
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+
 @end
 
 @interface AUCRootListController : PSListController
@@ -205,19 +214,10 @@ static NSUInteger auc_count_for_mode(NSInteger mode) {
     [self reloadSpecifiers];
 }
 
-- (NSString *)getAutoCount:(PSSpecifier *)specifier {
-    NSUInteger c = auc_count_for_mode(AUCUpdateModeAuto);
-    return c > 0 ? [NSString stringWithFormat:@"%lu 项", (unsigned long)c] : @"0 项";
-}
-
-- (NSString *)getManualCount:(PSSpecifier *)specifier {
-    NSUInteger c = auc_count_for_mode(AUCUpdateModeManual);
-    return c > 0 ? [NSString stringWithFormat:@"%lu 项", (unsigned long)c] : @"0 项";
-}
-
-- (NSString *)getDisabledCount:(PSSpecifier *)specifier {
-    NSUInteger c = auc_count_for_mode(AUCUpdateModeDisabled);
-    return c > 0 ? [NSString stringWithFormat:@"%lu 项", (unsigned long)c] : @"0 项";
+- (NSString *)getSummaryCount:(PSSpecifier *)specifier {
+    NSUInteger autoCnt = auc_count_for_mode(AUCUpdateModeAuto);
+    NSUInteger manualCnt = auc_count_for_mode(AUCUpdateModeManual);
+    return [NSString stringWithFormat:@"自动 %lu · 手动 %lu", (unsigned long)autoCnt, (unsigned long)manualCnt];
 }
 
 - (id)readPreferenceValue:(PSSpecifier *)specifier {
@@ -254,11 +254,11 @@ static NSUInteger auc_count_for_mode(NSInteger mode) {
 
 - (void)clearAllRules {
     UIAlertController *alert = [UIAlertController
-        alertControllerWithTitle:@"清空单应用规则"
-                       message:@"确定清除所有已配置的单个 App 更新规则（恢复跟随默认）吗？"
+        alertControllerWithTitle:@"重置为默认禁止"
+                       message:@"确定清空所有已放行的自动/手动更新配置（恢复全部默认禁止更新）吗？"
                 preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"确认清空"
+    [alert addAction:[UIAlertAction actionWithTitle:@"确认重置"
                                               style:UIAlertActionStyleDestructive
                                             handler:^(__unused UIAlertAction *action) {
         auc_cf_set(@"appModes", @{});

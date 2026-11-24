@@ -31,7 +31,6 @@
 
 static os_unfair_lock gPrefsLock = OS_UNFAIR_LOCK_INIT;
 static BOOL gEnabled = YES;
-static NSInteger gDefaultMode = AUCUpdateModeAuto;
 static NSDictionary<NSString *, NSNumber *> *gAppModes = nil;
 
 static __thread BOOL tInPerformUpdatesTask = NO;
@@ -41,17 +40,13 @@ static void auc_load_prefs(void) {
     CFPreferencesSynchronize(AUC_SUITE, kCFPreferencesCurrentUser, kCFPreferencesAnyHost);
 
     id enabledVal = auc_cf_get(@"enabled");
-    id defVal = auc_cf_get(@"defaultMode");
     id modesVal = auc_cf_get(@"appModes");
 
     BOOL enabled = [enabledVal respondsToSelector:@selector(boolValue)] ? [enabledVal boolValue] : YES;
-    NSInteger defMode = [defVal respondsToSelector:@selector(integerValue)] ? [defVal integerValue] : AUCUpdateModeAuto;
-    if (defMode < AUCUpdateModeAuto || defMode > AUCUpdateModeDisabled) defMode = AUCUpdateModeAuto;
     NSDictionary *modes = [modesVal isKindOfClass:[NSDictionary class]] ? [modesVal copy] : @{};
 
     os_unfair_lock_lock(&gPrefsLock);
     gEnabled = enabled;
-    gDefaultMode = defMode;
     gAppModes = modes;
     os_unfair_lock_unlock(&gPrefsLock);
 }
@@ -69,18 +64,18 @@ static AUCUpdateMode auc_effective_mode(NSString *bundleID) {
 
     os_unfair_lock_lock(&gPrefsLock);
     BOOL enabled = gEnabled;
-    NSInteger defMode = gDefaultMode;
     NSNumber *perApp = gAppModes[bundleID];
     os_unfair_lock_unlock(&gPrefsLock);
 
     if (!enabled) return AUCUpdateModeAuto;
     if ([perApp respondsToSelector:@selector(integerValue)]) {
         NSInteger v = [perApp integerValue];
-        if (v >= AUCUpdateModeAuto && v <= AUCUpdateModeDisabled) {
+        if (v == AUCUpdateModeAuto || v == AUCUpdateModeManual) {
             return (AUCUpdateMode)v;
         }
     }
-    return (AUCUpdateMode)defMode;
+    // Default policy: disable updates unless explicitly allowed (Auto or Manual).
+    return AUCUpdateModeDisabled;
 }
 
 static NSArray<NSString *> *auc_filter_disabled_bundle_ids(NSArray<NSString *> *bundleIDs) {
