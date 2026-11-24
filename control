@@ -1,6 +1,6 @@
 Package: com.siri666666.appupdatecontrol
 Name: AppUpdateControl
-Version: 1.0.0
+Version: 1.0.1
 Architecture: iphoneos-arm64
 Description: Per-app 3-mode App Store update control (Auto / Manual Only / Disabled) via appstored hooks with Chinese Settings UI.
 Maintainer: siri666666

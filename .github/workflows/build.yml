@@ -43,7 +43,7 @@ jobs:
           make package FINALPACKAGE=1 DEBUG=0 THEOS_PACKAGE_SCHEME=${{ matrix.target }} SYSROOT="${{ github.workspace }}/.build/sdks/iPhoneOS16.5.sdk"
           mkdir -p output
           deb_file=$(ls packages/*.deb | head -n 1)
-          cp "$deb_file" "output/com.siri666666.appupdatecontrol_1.0.0_${{ matrix.target }}.deb"
+          cp "$deb_file" "output/com.siri666666.appupdatecontrol_1.0.1_${{ matrix.target }}.deb"
           ls -la output/
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -64,8 +64,8 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0
-          name: AppUpdateControl v1.0.0
+          tag_name: v1.0.1
+          name: AppUpdateControl v1.0.1
           files: output/*.deb
           draft: false
           prerelease: false

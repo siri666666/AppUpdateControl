@@ -10,7 +10,7 @@
             <key>label</key>
             <string>总开关与默认策略</string>
             <key>footerText</key>
-            <string>请先在 系统设置 → App Store 中打开「App 更新」。之后本插件按单个 App 精确接管：自动更新=后台自动升；仅手动=跳过后台自动更新、保留 App Store 手动更新按钮；禁用=彻底屏蔽自动与手动更新并隐藏红点。</string>
+            <string>请先在 系统设置 → App Store 中开启「App 更新」。未在下方三列勾选的应用将按默认策略执行；在任意一列打开开关会自动互斥移出其他两列。</string>
         </dict>
         <dict>
             <key>cell</key>
@@ -53,19 +53,19 @@
             <key>cell</key>
             <string>PSGroupCell</string>
             <key>label</key>
-            <string>按应用单独配置</string>
+            <string>三档独立名单（可搜索 / 开关制）</string>
             <key>footerText</key>
-            <string>规则实时推送到 appstored 生效，无需注销桌面。若改了「禁用更新」想立刻刷新 App Store 列表，可点下方「重启 appstored 服务」。</string>
+            <string>自动更新：后台自动升级；仅手动更新：跳过后台自动更新，保留 App Store 手动更新按钮；禁用更新：屏蔽自动/手动/全部更新并隐藏红点。规则即时生效，无需注销桌面。</string>
         </dict>
         <dict>
             <key>cell</key>
-            <string>PSLinkListCell</string>
+            <string>PSLinkCell</string>
             <key>detail</key>
-            <string>AUCAppListController</string>
-            <key>subcontrollerClass</key>
-            <string>AUCAppDetailController</string>
+            <string>AUCAutoListController</string>
             <key>label</key>
-            <string>选择并配置应用...</string>
+            <string>自动更新名单</string>
+            <key>get</key>
+            <string>getAutoCount:</string>
             <key>sections</key>
             <array>
                 <dict>
@@ -81,6 +81,62 @@
             <true/>
             <key>includeIdentifiersInSearch</key>
             <true/>
+            <key>defaultApplicationSwitchValue</key>
+            <false/>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSLinkCell</string>
+            <key>detail</key>
+            <string>AUCManualListController</string>
+            <key>label</key>
+            <string>仅手动更新名单</string>
+            <key>get</key>
+            <string>getManualCount:</string>
+            <key>sections</key>
+            <array>
+                <dict>
+                    <key>sectionType</key>
+                    <string>User</string>
+                </dict>
+            </array>
+            <key>useSearchBar</key>
+            <true/>
+            <key>hideSearchBarWhileScrolling</key>
+            <false/>
+            <key>showIdentifiersAsSubtitle</key>
+            <true/>
+            <key>includeIdentifiersInSearch</key>
+            <true/>
+            <key>defaultApplicationSwitchValue</key>
+            <false/>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSLinkCell</string>
+            <key>detail</key>
+            <string>AUCDisabledListController</string>
+            <key>label</key>
+            <string>禁用更新名单</string>
+            <key>get</key>
+            <string>getDisabledCount:</string>
+            <key>sections</key>
+            <array>
+                <dict>
+                    <key>sectionType</key>
+                    <string>User</string>
+                </dict>
+            </array>
+            <key>useSearchBar</key>
+            <true/>
+            <key>hideSearchBarWhileScrolling</key>
+            <false/>
+            <key>showIdentifiersAsSubtitle</key>
+            <true/>
+            <key>includeIdentifiersInSearch</key>
+            <true/>
+            <key>defaultApplicationSwitchValue</key>
+            <false/>
         </dict>
 
         <dict>
@@ -114,7 +170,7 @@
             <key>label</key>
             <string>关于与开源</string>
             <key>footerText</key>
-            <string>AppUpdateControl v1.0.0 · MIT License · Native RootHide &amp; Rootless</string>
+            <string>AppUpdateControl v1.0.1 · MIT License · Native RootHide &amp; Rootless</string>
         </dict>
         <dict>
             <key>cell</key>
